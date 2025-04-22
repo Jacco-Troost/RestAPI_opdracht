@@ -13,7 +13,7 @@ api = FastAPI()
 # Models setup
 class GameBase(SQLModel):
     name: str = Field(index=True)
-    console: str | None = Field(default=None, index=True)
+    console: str | None = Field(default="pc", index=True)
     
 class Game(GameBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -59,45 +59,64 @@ def on_startup():
 #Endpoint that responds to post-requests and adds a new item
 @api.post("/items/",response_model=GamePublic)
 async def create_item(item: GameBase, session: SessionDep):
-    db_item = Game.model_validate(item)
-    session.add(db_item)
-    session.commit()
-    session.refresh(db_item)
-    return db_item
+    try:
+        db_item = Game.model_validate(item)
+        session.add(db_item)
+        session.commit()
+        session.refresh(db_item)
+    except:
+        print("something went wrong")
+    else:
+        return db_item
     
 
 
-#endpoint wich gets all items
+#endpoint wich gets all items http://127.0.0.1:8000/items/
 @api.get("/items/",response_model=list[GamePublic])
-async def get_items(
-    session: SessionDep,
-    offset: int = 0,
-    limit: Annotated[int, Query(le=100)] = 100,
-    ):
-    games = session.exec(select(Game).offset(offset).limit(limit)).all()
-    return games  
+async def get_items(session: SessionDep, offset: int = 0,  limit: Annotated[int, Query(le=100)] = 100,):
+    try:
+        games = session.exec(select(Game).offset(offset).limit(limit)).all()
+    except:
+        print("something went wrong")
+    else:  
+        return games  
     
 #Endpoint to update item with corrensponding itemID 
 @api.put("/items/{item_id}",response_model=GamePublic)
 async def update_item(item_id: int, item: GameUpdate, session: SessionDep):
-    item_db = session.get(Game, item_id)
-    if not item_db:
-        raise HTTPException(status_code=404, detail="item not found")
-    item_data = item.model_dump(exclude_unset=True)
-    item_db.sqlmodel_update(item_data)
-    session.add(item_db)
-    session.commit()
-    session.refresh(item_db)
-    return item_db
+    try:
+        item_db = session.get(Game, item_id)
+    
+        #if not in the database return 404
+        if not item_db:
+            raise HTTPException(status_code=404, detail="game not found")
+    
+        item_data = item.model_dump(exclude_unset=True)
+        item_db.sqlmodel_update(item_data)
+        session.add(item_db)
+        session.commit()
+        session.refresh(item_db)
+    
+    except:
+        print("something went wrong")
+    else:
+        return item_db
 
 
   
 #endpoint to delete item with corrensponding itemID    
 @api.delete("/items/{item_id}")
 async def delete_item(item_id: int, session: SessionDep):
-    game = session.get(Game, item_id)
-    if not game:
-        raise HTTPException(status_code=404, detail="game not found")
-    session.delete(game)
-    session.commit()
-    return {"ok": True}
+    try:
+        game = session.get(Game, item_id)
+    
+        #if not in the database return 404
+        if not game:
+            raise HTTPException(status_code=404, detail="game not found")
+    
+        session.delete(game)
+        session.commit()
+    except:
+        print("something went wrong")
+    else:
+        return {"ok": True}
